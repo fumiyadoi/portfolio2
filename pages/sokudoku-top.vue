@@ -23,12 +23,12 @@
                 <div class="column is-2 has-text-weight-semibold has-text-right" style="font-size: 1.5em; color: #404a72;"><span @click="onSelectModal" id="close">×</span></div>
               </div>
             </div>
-            <div v-for="(bookidtitle, index) in bookList" :key="bookidtitle[0]">
+            <div v-for="(bookList, index) in bookList" :key="bookList">
               <hr>
-              <div class="column is-12" @click="selectBook(bookidtitle[0])">
+              <div class="column is-12" @click="selectBook(index)">
                 <div class="columns is-mobile is-vcentered">
                   <div class="column is-1 has-text-weight-semibold has-text-centered" style="color: #f18d1d; transition: all 0.3s;">{{checkLetters[index]}}</div>
-                  <div class="column is-11" :style="bookTitleStyles[index]">{{bookidtitle[1]}}</div>
+                  <div class="column is-11" :style="modalStyles[index]">{{bookList}}</div>
                 </div>
               </div>
             </div>
@@ -40,7 +40,7 @@
             <figure class="image" style="display: flex; align-items: center;">
               <Min style="width: 40px; height: 40px;"/>
             </figure>
-            <vue-slider @change="changeSpeed()" style="width: 70%;" ref="slider" v-model="speed" :min=1 :max=100></vue-slider>
+            <vue-slider @change="changeSpeed" style="width: 70%;" ref="slider" v-model="speed" :min=1 :max=100></vue-slider>
             <figure class="image" style="display: flex; align-items: center;">
               <Max style="width: 40px; height: 40px;"/>
             </figure>
@@ -49,11 +49,10 @@
         <div class="column is-12 has-text-weight-semibold mt-3" style="color: #404a72;">文字サイズ</div>
         <div class="column is-12 mt-2">
           <div class="columns is-centered is-mobile">
-            <button class="size-button" id="small" v-bind:style="styles1" @click="$store.commit('data/fontsizeSmall')">小</button>
-            <div class="column is-2"></div>
-            <button class="size-button" id="medium" v-bind:style="styles2" @click="$store.commit('data/fontsizeMedium')">中</button>
-            <div class="column is-2"></div>
-            <button class="size-button" id="large" v-bind:style="styles3" @click="$store.commit('data/fontsizeLarge')">大</button>
+            <template v-for="(item, key) in fontsizes">
+              <FontSizeButton @click.native="changeFontsize(key)" :size="key" :isSelected="item" v-bind:key="item.key" />
+              <div v-if="key !== 'large'" class="column is-2" v-bind:key="item.key" ></div>
+            </template>
           </div>
         </div>
         <div class="column is-12 mt-6 mb-6">
@@ -67,13 +66,9 @@
 </template>
 
 <script>
-import { db } from '../plugins/firebase.js'
-import { collection, getDocs, query, where } from 'firebase/firestore'
-import Button from '~/assets/FormParts_Button.svg'
-import Logo from '~/assets/sublogo.svg'
-import Setting from '~/assets/Accessory_settings.svg'
 import Min from 'assets/Accessory_speed_low.svg'
 import Max from 'assets/Accessory_speed_max.svg'
+import FontSizeButton from '~/components/FontSizeButton.vue'
 import VueSlider from 'vue-slider-component'
 import 'vue-slider-component/theme/default.css'
 
@@ -86,170 +81,62 @@ export default {
       Ref: '/', /* ここにnavberの戻るボタンの遷移先を入れください（by fumiya 2021.12.5） */
       Title: '速読', /* ここにnavberのタイトルを入れください（by fumiya 2021.12.5） */
       modal_class: '',
-      checkStyles: [],
+      modalStyles: [],
       checkLetters: [],
-      bookTitleStyles: [],
       speed: 50,
       userId: '',
-      styles1: {
-        fontSize: '1em',
-        padding: '7px 16px',
-        borderRadius: '4px',
-        transition: 'all 0.3s',
-        border: '1px solid #3362a8',
-        background: 'white',
-        color: '#3362a8',
-        fontWeight: 'bold',
-        boxShadow: '0 2px 3px #00000029'
-      },
-      styles2: {
-        fontSize: '1em',
-        padding: '7px 16px',
-        borderRadius: '4px',
-        transition: 'all 0.3s',
-        border: '1px solid #3362a8',
-        background: 'white',
-        color: '#3362a8',
-        fontWeight: 'bold',
-        boxShadow: '0 2px 3px #00000029'
-      },
-      styles3: {
-        fontSize: '1em',
-        padding: '7px 16px',
-        borderRadius: '4px',
-        transition: 'all 0.3s',
-        border: '1px solid #3362a8',
-        background: 'white',
-        color: '#3362a8',
-        fontWeight: 'bold',
-        boxShadow: '0 2px 3px #00000029'
+      fontsizes: {
+        small: true,
+        medium: false,
+        large: false
       }
     }
   },
   components: {
-    Button,
-    Logo,
-    Setting,
     Min,
     Max,
+    FontSizeButton,
     VueSlider
   },
-  computed: {
-    changeStyles: function () {
-      return this.$store.state.data.fontsize
-    }
-  },
-  watch: {
-    changeStyles () {
-      if (this.$store.state.data.fontsize === 'small') {
-        this.styles1.color = '#f18d1d'
-        this.styles1.border = '1px solid #f18d1d'
-        this.styles2.color = '#3362a8'
-        this.styles2.border = '1px solid #3362a8'
-        this.styles3.color = '#3362a8'
-        this.styles3.border = '1px solid #3362a8'
-      } else if (this.$store.state.data.fontsize === 'medium') {
-        this.styles1.color = '#3362a8'
-        this.styles1.border = '1px solid #3362a8'
-        this.styles2.color = '#f18d1d'
-        this.styles2.border = '1px solid #f18d1d'
-        this.styles3.color = '#3362a8'
-        this.styles3.border = '1px solid #3362a8'
-      } else {
-        this.styles1.color = '#3362a8'
-        this.styles1.border = '1px solid #3362a8'
-        this.styles2.color = '#3362a8'
-        this.styles2.border = '1px solid #3362a8'
-        this.styles3.color = '#f18d1d'
-        this.styles3.border = '1px solid #f18d1d'
-      }
-    }
-  },
   async mounted () {
-    // this.$store.commit('tmp')/* 保存しているページ数をリセットします。 */
+    this.checkFontsize(this.$store.state.data.fontsize)
+    // this.$store.commit('data/tmp')/* 保存しているページ数をリセットします。 */
+    this.bookList = this.$store.state.data.bookList.concat(this.$store.state.data.userBookList)
     this.speed = this.$store.state.data.sokudokuSpeed/* スピードをvuexから取得します。 */
-    /* 文字サイズの表示を設定します。 */
-    if (this.$store.state.fontsize === 'small') {
-      this.styles1.color = '#f18d1d'
-      this.styles1.border = '1px solid #f18d1d'
-      this.styles2.color = '#3362a8'
-      this.styles2.border = '1px solid #3362a8'
-      this.styles3.color = '#3362a8'
-      this.styles3.border = '1px solid #3362a8'
-    } else if (this.$store.state.data.fontsize === 'medium') {
-      this.styles1.color = '#3362a8'
-      this.styles1.border = '1px solid #3362a8'
-      this.styles2.color = '#f18d1d'
-      this.styles2.border = '1px solid #f18d1d'
-      this.styles3.color = '#3362a8'
-      this.styles3.border = '1px solid #3362a8'
-    } else {
-      this.styles1.color = '#3362a8'
-      this.styles1.border = '1px solid #3362a8'
-      this.styles2.color = '#3362a8'
-      this.styles2.border = '1px solid #3362a8'
-      this.styles3.color = '#f18d1d'
-      this.styles3.border = '1px solid #f18d1d'
-    }
     this.updateRef()/* navbarの戻るボタンの遷移先の受け渡し */
     this.updateTitle()/* navbarのタイトルの受け渡し */
-    /* ここからはfirebaseから本のタイトルを取ってくるところ */
-    const self = this
-    /* ユーザーが作成したコンテンツを取ってきます */
-    const q1 = query(collection(db, 'books'), where('createdUserDocumentID', '==', self.$store.state.data.userId), where('admin', '==', false))
-    const querySnapshot1 = await getDocs(q1)
-    querySnapshot1.forEach((doc) => {
-      self.bookList.push([doc.id, doc.data().title])
-      /* vuexに本のidが登録されていなかったら0ページで登録 */
-      if (self.$store.state.data.bookPages[doc.id] === undefined) {
-        self.$store.commit('data/addBook', doc.id)
-      }
-    })
-    /* 共通コンテンツを取ってきます */
-    const q2 = query(collection(db, 'books'), where('admin', '==', true))
-    const querySnapshot2 = await getDocs(q2)
-    querySnapshot2.forEach((doc) => {
-      self.bookList.push([doc.id, doc.data().title])
-      /* vuexに本のidが登録されていなかったら0ページで登録 */
-      if (self.$store.state.data.bookPages[doc.id] === undefined) {
-        self.$store.commit('data/addBook', doc.id)
-      }
-    })
     /* これはモーダルのデザインを設定する処理 */
-    let flag = 0 /* bookIdの存在を確かめるための変数 */
     for (let i = 0; i < this.bookList.length; i++) {
-      this.checkStyles.push({
+      this.modalStyles.push({
         color: '#404a72',
         transition: 'all 0.3s'
       })
       this.checkLetters.push('')
-      this.bookTitleStyles.push({
-        color: '#404a72',
-        transition: 'all 0.3s'
-      })
-      /* ここでbookIdがないか確認する */
-      if (this.bookList[i][0] === this.$store.state.data.bookId) {
-        flag = 1
-      }
     }
-    /* 最初に選択されているタイトルを決定するための処理 */
-    if (flag === 0) {
-      this.$store.commit('data/changeBookId', this.bookList[0][0])
-    }
-    this.selectBook(this.$store.state.data.bookId)
+    this.selectBook(this.$store.state.data.bookIndex)
   },
   methods: {
     updateRef () {
       this.$nuxt.$emit('updateRef', this.Ref)
-    },
-    updateButton () {
-      this.$nuxt.$emit('updateButton', this.Button)
     },
     updateTitle () {
       this.$nuxt.$emit('updateTitle', this.Title)
     },
     changeSpeed () {
       this.$store.commit('data/changeSokudokuSpeed', this.speed)
+    },
+    changeFontsize (fontsize) {
+      this.$store.commit('data/changeFontsize', fontsize)
+      this.checkFontsize(fontsize)
+    },
+    checkFontsize (fontsize) {
+      for (const [key] of Object.entries(this.fontsizes)) {
+        if (key === fontsize) {
+          this.fontsizes[key] = true
+        } else {
+          this.fontsizes[key] = false
+        }
+      }
     },
     startSokutore () {
       this.$router.push('sokudoku')
@@ -265,16 +152,16 @@ export default {
         this.modal_class = 'is-active'
       }
     },
-    selectBook (id) {
+    selectBook (index) {
+      this.$store.commit('data/changeBookIndex', index)
       for (let i = 0; i < this.bookList.length; i++) {
-        if (this.bookList[i][0] === id) {
+        if (i === index) {
           this.checkLetters[i] = '✓'
-          this.bookTitleStyles[i].color = '#f18d1d'
-          this.$store.commit('data/changeBookId', id)
-          this.selectedTitle = this.bookList[i][1]
+          this.modalStyles[i].color = '#f18d1d'
+          this.selectedTitle = this.bookList[i]
         } else {
           this.checkLetters[i] = ''
-          this.bookTitleStyles[i].color = '#404a72'
+          this.modalStyles[i].color = '#404a72'
         }
       }
     }

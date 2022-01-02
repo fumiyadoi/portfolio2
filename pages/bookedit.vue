@@ -25,17 +25,17 @@
             </div>
           </div>
         </div>
-        <div class="column is-12">
+        <div class="column is-12 mb-5">
           <div class="columns is-centered is-mobile">
             <div class="column is-12">
               <button @click="checkBack" class="button back-button modoru">戻る</button>
             </div>
           </div>
         </div>
-        <div class="column is-12 mt-5 mb-5">
+        <div v-if="isEdit" class="column is-12 mb-5">
           <div class="columns is-centered is-mobile">
             <div class="column is-12">
-              <button @click="checkDelete" :style="deleteStyle" class="button back-button Warn">削除</button>
+              <button @click="checkDelete" class="button back-button Warn">削除</button>
             </div>
           </div>
         </div>
@@ -45,19 +45,23 @@
             <div class="column is-12">
               <div class="columns is-mobile is-vcentered" id="modalnav">
                 <div class="column is-2"></div>
-                <div class="column is-8 has-text-weight-semibold has-text-centered" style="color: #404a72;">{{modalTitle}}</div>
+                <div v-if="isBack" class="column is-8 has-text-weight-semibold has-text-centered" style="color: #404a72;">確認</div>
+                <div v-else class="column is-8 has-text-weight-semibold has-text-centered" style="color: #404a72;">教材の削除</div>
                 <div class="column is-2 has-text-weight-semibold has-text-right" style="font-size: 1.5em; color: #404a72;"><span @click="onSelectModal" id="close">×</span></div>
               </div>
             </div>
             <hr>
-            <div class="column is-12 has-text-weight-semibold has-text-centered">{{modalBody}}</div>
+            <div v-if="isBack" class="column is-12 has-text-weight-semibold has-text-centered">入力内容の変更が保存されませんが戻りますか？</div>
+            <div v-else class="column is-12 has-text-weight-semibold has-text-centered">「{{bookTitle}}」を削除しますか？</div>
             <div class="column is-12">
               <div class="columns is-mobile is-vcentered is-multiline">
                 <div class="column is-6">
-                  <button @click="onSelectModal" class="button back-button is-size-7">{{modalCancel}}</button>
+                  <button v-if="isBack" @click="onSelectModal" class="button back-button is-size-7">いいえ</button>
+                  <button v-else @click="onSelectModal" class="button back-button is-size-7">キャンセル</button>
                 </div>
                 <div class="column is-6">
-                  <button @click="backDelete" class="button back-button Warn is-size-7">{{modalAccept}}</button>
+                  <button v-if="isBack" @click="goBack" class="button back-button Warn is-size-7">はい</button>
+                  <button v-else @click="goDelete" class="button back-button Warn is-size-7">削除</button>
                 </div>
               </div>
             </div>
@@ -69,29 +73,20 @@
 </template>
 
 <script>
-import { db } from '../plugins/firebase.js'
-import { doc, getDoc, updateDoc, deleteDoc, serverTimestamp, addDoc, collection } from 'firebase/firestore'
-
 export default {
   layout: 'defaultEdit',
   data () {
     return {
       Ref: 'booklist', /* ここにnavberの戻るボタンの遷移先を入れください（by fumiya 2021.12.5） */
       Title: '教材の編集', /* ここにnavberのタイトルを入れください（by fumiya 2021.12.5） */
-      list: [],
-      modalTitle: '',
-      modalBody: '',
-      modalCancel: '',
-      modalAccept: '',
       isBack: true,
       bookTitleInitial: '',
       bookTitle: '',
       bookBodyInitial: '',
       bookBody: '',
-      deleteStyle: {
-        display: 'none'
-      },
-      modal_class: ''
+      modal_class: '',
+      isEdit: this.$store.state.data.flag,
+      isChanged: false
     }
   },
   async mounted () {
@@ -99,40 +94,38 @@ export default {
     this.$nuxt.$emit('updateRef', this.Ref)/* navbarの戻るボタンの遷移先の受け渡し */
     this.$nuxt.$emit('updateTitle', this.Title)/* navbarのタイトルの受け渡し */
     /* ここからは文章追加か編集の判断を行います */
-    if (this.$store.state.data.flag) {
-      /* ここからは一番のボタンの表記を設定します */
-      this.deleteStyle.display = 'block'
-      /* ここからは表示する本の中身をfirebaseから取ってくるところ */
-      const self = this
-      const docRef = doc(db, 'books', self.$store.state.data.bookId)
-      const docSnap = await getDoc(docRef)
-      self.bookTitleInitial = docSnap.data().title
-      self.bookTitle = docSnap.data().title
-      self.bookBodyInitial = docSnap.data().content
-      self.bookBody = docSnap.data().content
+    if (this.isEdit) {
+      const indexSub = this.$store.state.data.bookIndex - this.$store.state.data.bookList.length
+      this.bookTitleInitial = this.$store.state.data.userBookList[indexSub]
+      this.bookTitle = this.$store.state.data.userBookList[indexSub]
+      this.bookBodyInitial = this.$store.state.data.userBookContent[indexSub]
+      this.bookBody = this.$store.state.data.userBookContent[indexSub]
     }
-    /* navbarに入れる値を受け渡します */
-    this.$nuxt.$emit('updateBookTitleInitial', this.bookTitleInitial)/* navbarへ本のタイトルの編集前を受け渡します */
-    this.$nuxt.$emit('updateBookTitle', this.bookTitle)/* navbarへ本のタイトルの編集後を受け渡します */
-    this.$nuxt.$emit('updateBookBodyInitial', this.bookBodyInitial)/* navbarへ本の中身の編集前を受け渡します */
-    this.$nuxt.$emit('updateBookBody', this.bookBody)/* navbarへ本の中身の編集後を受け渡します */
   },
   watch: {
     bookTitle: function (newVal, oldVal) {
-      this.updateNavbar()
+      if (this.bookTitle === this.bookTitleInitial && this.bookBody === this.bookBodyInitial) {
+        this.isChanged = false
+        this.$nuxt.$emit('checkChange', false)
+      } else {
+        this.isChanged = true
+        this.$nuxt.$emit('checkChange', true)
+      }
     },
     bookBody: function (newVal, oldVal) {
-      this.updateNavbar()
+      if (this.bookTitle === this.bookTitleInitial && this.bookBody === this.bookBodyInitial) {
+        this.isChanged = false
+        this.$nuxt.$emit('checkChange', false)
+      } else {
+        this.isChanged = true
+        this.$nuxt.$emit('checkChange', true)
+      }
     }
   },
   methods: {
     updateNavbar () {
       this.$nuxt.$emit('updateRef', this.Ref)/* navbarの戻るボタンの遷移先の受け渡し */
       this.$nuxt.$emit('updateTitle', this.Title)/* navbarのタイトルの受け渡し */
-      this.$nuxt.$emit('updateBookTitleInitial', this.bookTitleInitial)/* navbarへ本のタイトルの編集前を受け渡します */
-      this.$nuxt.$emit('updateBookTitle', this.bookTitle)/* navbarへ本のタイトルの編集後を受け渡します */
-      this.$nuxt.$emit('updateBookBodyInitial', this.bookBodyInitial)/* navbarへ本の中身の編集前を受け渡します */
-      this.$nuxt.$emit('updateBookBody', this.bookBody)/* navbarへ本の中身の編集後を受け渡します */
     },
     onSelectModal () {
       if (this.modal_class === 'is-active') {
@@ -142,66 +135,42 @@ export default {
       }
     },
     checkBack () {
-      if (this.bookTitleInitial === this.bookTitle && this.bookBodyInitial === this.bookBody) {
-        this.$router.push('booklist')
-      } else {
-        this.modalTitle = '確認'
-        this.modalBody = '入力内容の変更が保存されませんが戻りますか？'
-        this.modalCancel = 'いいえ'
-        this.modalAccept = 'はい'
+      if (this.isChanged) {
         this.isBack = true
         this.onSelectModal()
+      } else {
+        this.goBack()
       }
     },
     checkDelete () {
-      this.modalTitle = '教材の削除'
-      this.modalBody = '「' + this.bookTitle + '」を削除しますか？'
-      this.modalCancel = 'キャンセル'
-      this.modalAccept = '削除'
       this.isBack = false
       this.onSelectModal()
     },
-    async updateBook () {
-      const self = this
-      if (self.$store.state.data.flag) {
-        const bookRef = doc(db, 'books', self.$store.state.data.bookId)
-        await updateDoc(bookRef, {
-          title: self.bookTitle,
-          content: self.bookBody,
-          updatedAt: serverTimestamp()
-        })
+    updateBook () {
+      if (this.isEdit) {
+        this.$store.commit('data/updateBookList', this.bookTitle)
+        this.$store.commit('data/updateBookContent', this.bookBody)
       } else {
-        await addDoc(collection(db, 'books'), {
-          admin: false,
-          content: self.bookBody,
-          createdAt: serverTimestamp(),
-          createdUser: 'users/' + self.$store.state.data.userId,
-          createdUserDocumentID: self.$store.state.data.userId,
-          title: self.bookTitle,
-          updatedAt: serverTimestamp()
-        })
+        this.$store.commit('data/addBookList', this.bookTitle)
+        this.$store.commit('data/addBookContent', this.bookBody)
+        this.$store.commit('data/addBook')
       }
-      self.$router.push('booklist')
+      this.$router.push('booklist')
     },
-    async backDelete () {
-      if (this.isBack) {
-        this.$router.push('booklist')
-      } else {
-        const self = this
-        await deleteDoc(doc(db, 'books', self.$store.state.data.bookId))
-        self.$store.commit('data/deleteBook', self.$store.state.data.bookId)
-        self.$router.push('booklist')
-      }
+    goBack () {
+      this.$router.push('booklist')
+    },
+    goDelete () {
+      this.$router.push('booklist')
+      this.$store.commit('data/deleteBookList')
+      this.$store.commit('data/deleteBookContent')
+      this.$store.commit('data/changeBookIndex', 0)
     }
   }
 }
 </script>
 
 <style>
-.button:hover {
-  color: white;
-}
-
 .edit-button {
   width: 100%;
   height: 40px;
@@ -275,6 +244,10 @@ hr {
   border-radius: 8px;
   border: none;
   background: #f18d1d;
+  color: white;
+}
+
+.update-button:hover {
   color: white;
 }
 

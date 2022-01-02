@@ -1,7 +1,7 @@
 <template>
   <div>
     <section class="main-content-top">
-      <NavbarEdit v-on:componentRef="goBookList" :title="title" :bookTitleInitial="bookTitleInitial" :bookTitle="bookTitle" :bookBodyInitial="bookBodyInitial" :bookBody="bookBody" />
+      <NavbarEdit v-on:componentRef="goBookList" :title="title" :bookTitleInitial="bookTitleInitial" :bookTitle="bookTitle" :bookBodyInitial="bookBodyInitial" :bookBody="bookBody" :isChanged="isChanged" />
       <div @click="isClose" class="container_top">
         <Nuxt />
       </div>
@@ -21,7 +21,8 @@ export default {
       bookTitleInitial: '',
       bookTitle: '',
       bookBodyInitial: '',
-      bookBody: ''
+      bookBody: '',
+      isChanged: false
     }
   },
   components: {
@@ -34,10 +35,7 @@ export default {
     setListener () {
       this.$nuxt.$on('updateRef', this.setRef1)
       this.$nuxt.$on('updateTitle', this.setRef2)
-      this.$nuxt.$on('updateBookTitleInitial', this.setRef3)
-      this.$nuxt.$on('updateBookTitle', this.setRef4)
-      this.$nuxt.$on('updateBookBodyInitial', this.setRef5)
-      this.$nuxt.$on('updateBookBody', this.setRef6)
+      this.$nuxt.$on('checkChange', this.setRef3)
     },
     setRef1 (ref) {
       this.ref = ref || ''
@@ -45,17 +43,12 @@ export default {
     setRef2 (title) {
       this.title = title || ''
     },
-    setRef3 (booktitleinitial) {
-      this.bookTitleInitial = booktitleinitial || ''
-    },
-    setRef4 (booktitle) {
-      this.bookTitle = booktitle || ''
-    },
-    setRef5 (bookbodyinitial) {
-      this.bookBodyInitial = bookbodyinitial || ''
-    },
-    setRef6 (bookbody) {
-      this.bookBody = bookbody || ''
+    setRef3 (boolean) {
+      if (boolean) {
+        this.isChanged = true
+      } else {
+        this.isChanged = false
+      }
     },
     goBookList () {
       this.$router.push(this.ref)

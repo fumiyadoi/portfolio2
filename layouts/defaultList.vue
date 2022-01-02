@@ -1,7 +1,7 @@
 <template>
   <div>
     <section class="main-content-top">
-      <NavbarList v-on:componentRef="backPage" :title="title"/>
+      <NavbarList v-on:componentRef="backPage" />
       <div @click="isClose" class="container_top">
         <Nuxt />
       </div>
@@ -16,8 +16,7 @@ export default {
   name: 'defaultList',
   data () {
     return {
-      ref: '',
-      title: ''
+      ref: ''
     }
   },
   components: {
@@ -28,14 +27,10 @@ export default {
   },
   methods: {
     setListener () {
-      this.$nuxt.$on('updateRef', this.setRef1)
-      this.$nuxt.$on('updateTitle', this.setRef2)
+      this.$nuxt.$on('updateRef', this.setRef)
     },
-    setRef1 (ref) {
+    setRef (ref) {
       this.ref = ref || ''
-    },
-    setRef2 (title) {
-      this.title = title || ''
     },
     backPage () {
       this.$router.push(this.ref)

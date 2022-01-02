@@ -3,7 +3,7 @@
     <div class="column is-4-tablet is-11-mobile">
       <div class="columns is-mobile is-multiline is-centered is-vcentered">
         <div class="column is-12 wrapper-content mb-5 tategaki-wrapper">
-          <div class="tategaki pt-3 pb-1" v-bind:class="{'is-size-8-sokutore': small, 'is-size-7-sokutore': medium, 'is-size-6-sokutore': large}">
+          <div class="tategaki pt-3 pb-1" :class="fontsize">
             <div class="trimmed-wrapper">
               <span :style="highlightStyle[0]">{{firstLetter[page]}}</span>
               <span>{{trimmed[page]}}</span>
@@ -34,9 +34,6 @@
 </template>
 
 <script>
-import { db } from '../plugins/firebase.js'
-import { doc, getDoc } from 'firebase/firestore'
-
 export default {
   layout: 'defaultContent',
   data () {
@@ -48,13 +45,10 @@ export default {
       firstLetter: [],
       lastLetter: [],
       highlightStyle: [],
-      n: 0,
       intervalId: undefined,
       length: '',
       page: '',
-      small: false,
-      medium: true,
-      large: false,
+      fontsize: '',
       speed: 50
     }
   },
@@ -62,29 +56,21 @@ export default {
     this.speed = this.$store.state.data.sokutoreSpeed/* スピードをvuexから取得します。 */
     /* 文字サイズを設定します。 */
     if (this.$store.state.data.fontsize === 'small') {
-      this.small = true
-      this.medium = false
-      this.large = false
+      this.fontsize = 'is-size-8-sokutore'
     } else if (this.$store.state.data.fontsize === 'medium') {
-      this.small = false
-      this.medium = true
-      this.large = false
+      this.fontsize = 'is-size-7-sokutore'
     } else {
-      this.small = false
-      this.medium = false
-      this.large = true
+      this.fontsize = 'is-size-6-sokutore'
     }
     this.updateRef()/* navbarの戻るボタンの遷移先の受け渡し */
     this.updateTitle()/* navbarのタイトルの受け渡し */
-    /* ここからは表示する本の中身をfirebaseから取ってくるところ */
-    const self = this
-    const docRef = doc(db, 'books', self.$store.state.data.bookId)
-    const docSnap = await getDoc(docRef)
-    self.body = docSnap.data().content
-    self.bookTitle = docSnap.data().title
+    const bookList = this.$store.state.data.bookList.concat(this.$store.state.data.userBookList)
+    const bookContent = this.$store.state.data.bookContent.concat(this.$store.state.data.userBookContent)
+    this.bookTitle = bookList[this.$store.state.data.bookIndex]
+    this.body = bookContent[this.$store.state.data.bookIndex]
     /* 本の中身を40文字ずつに分割します */
     for (let i = 0; i < this.body.length / 40; i++) {
-      if (i === this.body.length / 40 - 1) {
+      if (i === Math.floor(this.body.length / 40)) {
         this.firstLetter.push(this.body.charAt(i * 40))
         this.trimmed.push(this.body.slice(i * 40 + 1, this.body.length - 1))
         this.lastLetter.push(this.body.charAt(this.body.length - 1))
@@ -94,8 +80,11 @@ export default {
         this.lastLetter.push(this.body.charAt((i + 1) * 40 - 1))
       }
     }
+    console.log(this.firstLetter)
+    console.log(this.trimmed)
+    console.log(this.lastLetter)
     /* 全ページ数と現在ページの表示を設定します。 */
-    this.page = this.$store.state.data.bookPages[this.$store.state.data.bookId][1]
+    this.page = this.$store.state.data.bookPages[this.$store.state.data.bookIndex][1]
     this.length = Math.ceil(this.trimmed.length / 3)
     /* 最初のページのハイライト表示を開始します。 */
     this.highlight()
@@ -104,10 +93,16 @@ export default {
     clearInterval(this.intervalId)
   },
   methods: {
+    updateRef () {
+      this.$nuxt.$emit('updateRef', this.Ref)
+    },
+    updateTitle () {
+      this.$nuxt.$emit('updateTitle', this.bookTitle)
+    },
     nextPage () {
-      if (this.$store.state.data.bookPages[this.$store.state.data.bookId][1] / 3 < this.length - 1) {
+      if (this.$store.state.data.bookPages[this.$store.state.data.bookIndex][1] / 3 < this.length - 1) {
         this.$store.commit('data/changePage', 1)
-        this.page = this.$store.state.data.bookPages[this.$store.state.data.bookId][1]
+        this.page = this.$store.state.data.bookPages[this.$store.state.data.bookIndex][1]
         this.highlight()
       }
     },
@@ -115,53 +110,37 @@ export default {
       clearInterval(this.intervalId)
       this.isPlay = false
       this.$store.commit('data/goTopPage', 1)
-      this.page = this.$store.state.data.bookPages[this.$store.state.data.bookId][1]
+      this.page = this.$store.state.data.bookPages[this.$store.state.data.bookIndex][1]
       this.highlight()
-    },
-    pauseChangePage () {
-      clearInterval(this.intervalId)
-      this.isPlay = false
-    },
-    playChangePage () {
-      if (!this.isPlay) {
-        this.intervalId = setInterval(() => {
-          this.isPlay = true
-          this.changePage()
-        }, -100 * this.speed + 10100)
-      }
-    },
-    updateRef () {
-      this.$nuxt.$emit('updateRef', this.Ref)
-    },
-    updateButton () {
-      this.$nuxt.$emit('updateButton', this.Button)
-    },
-    updateTitle () {
-      this.$nuxt.$emit('updateTitle', this.bookTitle)
     },
     highlight () {
       /* ハイライトの初期表示を設定します。 */
-      this.n = 0
-      clearInterval(this.intervalId)
+      let n = 0
+      let limit = 0
       this.highlightStyle = []
-      for (let i = 0; i < 6; i++) {
-        if (i === 0) {
-          this.highlightStyle.push({ background: 'yellow' })
+      clearInterval(this.intervalId)
+      for (let i = 0; i < 3; i++) {
+        if (this.firstLetter[this.page + i] !== undefined) {
+          limit += 2
         } else {
-          this.highlightStyle.push({ background: 'none' })
+          break
         }
       }
+      for (let i = 0; i < limit; i++) {
+        this.highlightStyle.push({ background: 'none' })
+      }
+      this.highlightStyle[0].background = 'yellow'
       /* ハイライトの移動処理を開始します。 */
       this.intervalId = setInterval(() => {
-        if (this.n < 5) {
-          for (let i = 0; i < 6; i++) {
-            if (i === this.n + 1) {
+        if (n < limit - 1) {
+          for (let i = 0; i < limit; i++) {
+            if (i === n + 1) {
               this.highlightStyle[i].background = 'yellow'
             } else {
               this.highlightStyle[i].background = 'none'
             }
           }
-          this.n++
+          n++
         }
       }, -100 * this.speed + 10100)
     }
@@ -227,10 +206,12 @@ export default {
 }
 
 .is-size-7-sokutore {
-  line-height: 2.5em;
+  font-size: 0.5em;
+  line-height: 6em;
 }
 
 .is-size-6-sokutore {
-  line-height: 1.8em;
+  font-size: 0.5em;
+  line-height: 6em;
 }
 </style>

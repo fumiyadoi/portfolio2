@@ -3,14 +3,14 @@
     <div class="column is-4-tablet is-11-mobile">
       <div class="columns is-mobile is-multiline is-centered is-vcentered">
         <div class="column is-12 wrapper-content mb-5 tategaki-wrapper">
-          <div class="tategaki pt-3 pb-1" v-bind:class="{'is-size-7': small, 'is-size-6': medium, 'is-size-5': large}">{{trimmed[page]}}</div>
+          <div class="tategaki pt-3 pb-1" :class="fontsize">{{trimmed[page]}}</div>
           <div class="is-size-7 has-text-centered">{{(page + 1) +'/'+length}}</div>
         </div>
         <div class="column is-12 wrapper-content">
           <div class="columns is-mobile is-vcentered">
-            <figure @click="onSpeedModal" class="image is-1" id="speed" style="display: flex; align-items: center;"><Min2 style="width: 60px; height: 60px;"/></figure>
-            <figure @click="switchPlay" class="image is-1" id="pause" :style="isPlayStyle[0]"><Pause style="width: 60px; height: 60px;"/></figure>
-            <figure @click="switchPlay" class="image is-1" id="play" :style="isPlayStyle[1]"><Play style="width: 60px; height: 60px;"/></figure>
+            <figure @click="onSpeedModal" class="image is-1" id="speed"><Speed style="width: 60px; height: 60px;"/></figure>
+            <figure v-if="isPlay" @click="pause" class="image is-1" id="pause"><Pause style="width: 60px; height: 60px;"/></figure>
+            <figure v-else @click="play" class="image is-1" id="play"><Play style="width: 60px; height: 60px;"/></figure>
             <div class="column is-fullwidth has-text-right"><span class="p-2 is-size-7" id="gotoppage" @click="goTopPage">最初に戻る >|</span></div>
           </div>
         </div>
@@ -45,9 +45,7 @@
 </template>
 
 <script>
-import { db } from '../plugins/firebase.js'
-import { doc, getDoc } from 'firebase/firestore'
-import Min2 from 'assets/Accessory_speed_low_2.svg'
+import Speed from 'assets/Accessory_speed_low_2.svg'
 import Pause from 'assets/Accessory_Pause.svg'
 import Play from 'assets/Accessory_Play.svg'
 import Min from 'assets/Accessory_speed_low.svg'
@@ -66,17 +64,14 @@ export default {
       length: '',
       page: '',
       intervalId: undefined,
-      isPlay: false,
-      isPlayStyle: [],
-      small: false,
-      medium: true,
-      large: false,
+      isPlay: true,
+      fontsize: '',
       modal_class: '',
       speed: 50
     }
   },
   components: {
-    Min2,
+    Speed,
     Pause,
     Play,
     Min,
@@ -84,44 +79,29 @@ export default {
     VueSlider
   },
   async mounted () {
+    console.log(this.$store.state.data.bookPages)
     this.speed = this.$store.state.data.sokudokuSpeed/* スピードをvuexから取得します。 */
-    /* 再生on/offスイッチの表示を設定します */
-    for (let i = 0; i < 2; i++) {
-      this.isPlayStyle.push({
-        display: 'none',
-        alignItems: 'center'
-      })
-    }
     /* 文字サイズを設定します。 */
     if (this.$store.state.data.fontsize === 'small') {
-      this.small = true
-      this.medium = false
-      this.large = false
+      this.fontsize = 'is-size-7'
     } else if (this.$store.state.data.fontsize === 'medium') {
-      this.small = false
-      this.medium = true
-      this.large = false
+      this.fontsize = 'is-size-6'
     } else {
-      this.small = false
-      this.medium = false
-      this.large = true
+      this.fontsize = 'is-size-5'
     }
-    /* ここからは表示する本の中身をfirebaseから取ってくるところ */
-    const self = this
-    const docRef = doc(db, 'books', self.$store.state.data.bookId)
-    const docSnap = await getDoc(docRef)
-    self.body = docSnap.data().content
-    self.bookTitle = docSnap.data().title
-    /* 本の中身を40文字ずつに分割します */
+    const bookList = this.$store.state.data.bookList.concat(this.$store.state.data.userBookList)
+    const bookContent = this.$store.state.data.bookContent.concat(this.$store.state.data.userBookContent)
+    this.bookTitle = bookList[this.$store.state.data.bookIndex]
+    this.body = bookContent[this.$store.state.data.bookIndex]
     for (let i = 0; i < this.body.length / 40; i++) {
-      if (i === this.body.length / 40 - 1) {
+      if (i === Math.floor(this.body.length / 40)) {
         this.trimmed.push(this.body.slice(i * 40, this.body.length))
       } else {
         this.trimmed.push(this.body.slice(i * 40, (i + 1) * 40))
       }
     }
     /* 全ページ数と現在ページの表示を設定します。 */
-    this.page = this.$store.state.data.bookPages[this.$store.state.data.bookId][0]
+    this.page = this.$store.state.data.bookPages[this.$store.state.data.bookIndex][0]
     this.length = this.trimmed.length
     this.updateRef()/* navbarの戻るボタンの遷移先の受け渡し */
     this.updateTitle()/* navbarのタイトルの受け渡し */
@@ -132,6 +112,12 @@ export default {
     this.pause()
   },
   methods: {
+    updateRef () {
+      this.$nuxt.$emit('updateRef', this.Ref)
+    },
+    updateTitle () {
+      this.$nuxt.$emit('updateTitle', this.bookTitle)
+    },
     onSpeedModal () {
       this.pause()
       if (this.modal_class === 'is-active') {
@@ -142,9 +128,9 @@ export default {
       }
     },
     changePage () {
-      if (this.$store.state.data.bookPages[this.$store.state.data.bookId][0] < this.length - 1) {
+      if (this.$store.state.data.bookPages[this.$store.state.data.bookIndex][0] < this.length - 1) {
         this.$store.commit('data/changePage', 0)
-        this.page = this.$store.state.data.bookPages[this.$store.state.data.bookId][0]
+        this.page = this.$store.state.data.bookPages[this.$store.state.data.bookIndex][0]
       } else {
         this.pause()
       }
@@ -152,37 +138,17 @@ export default {
     goTopPage () {
       this.pause()
       this.$store.commit('data/goTopPage', 0)
-      this.page = this.$store.state.data.bookPages[this.$store.state.data.bookId][0]
+      this.page = this.$store.state.data.bookPages[this.$store.state.data.bookIndex][0]
     },
     pause () {
       clearInterval(this.intervalId)
       this.isPlay = false
-      this.isPlayStyle[0].display = 'none'
-      this.isPlayStyle[1].display = 'flex'
     },
     play () {
       this.intervalId = setInterval(() => {
         this.isPlay = true
         this.changePage()
       }, -49.5 * this.speed + 5049)
-      this.isPlayStyle[0].display = 'flex'
-      this.isPlayStyle[1].display = 'none'
-    },
-    switchPlay () {
-      if (this.isPlay) {
-        this.pause()
-      } else {
-        this.play()
-      }
-    },
-    updateRef () {
-      this.$nuxt.$emit('updateRef', this.Ref)
-    },
-    updateButton () {
-      this.$nuxt.$emit('updateButton', this.Button)
-    },
-    updateTitle () {
-      this.$nuxt.$emit('updateTitle', this.bookTitle)
     }
   }
 }
@@ -220,7 +186,14 @@ export default {
 #speed,
 #pause,
 #play {
+  display: flex;
+  align-items: center;
   cursor: pointer;
+}
+
+#pause,
+#play {
+  align-items: 'center';
 }
 
 #gotoppage {
