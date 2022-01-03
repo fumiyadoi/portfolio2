@@ -54,11 +54,5 @@ export default {
   build: {
   },
   
-  mode: 'spa',
-
-  target: 'static',
-
-  router: {
-    base: 'portfolio2'
-  }
+  mode: 'spa'
 }
